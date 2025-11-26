@@ -141,6 +141,53 @@ kubectl scale deployment test-app --replicas=3 -n syncplant-backend
 kubectl delete deployment test-app -n syncplant-backend
 ```
 
+## 🥗 Kubernetes 部署
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodeport-controller
+  namespace: syncplant-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodeport-controller
+  template:
+    metadata:
+      labels:
+        app: nodeport-controller
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: controller
+          image: bubua12/auto-config-controller:1.0.1
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nodeport-controller-role
+rules:
+- apiGroups: ["", "apps"]
+  resources: ["pods", "services", "deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nodeport-controller-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nodeport-controller-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: syncplant-backend
+```
+
 ## 📄 许可证
 
 MIT License - 查看 [LICENSE](LICENSE) 文件了解详情
