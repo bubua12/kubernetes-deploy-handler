@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,23 +27,26 @@ func newDeploymentHandler(client *kubernetes.Clientset) *DeploymentHandler {
 	return &DeploymentHandler{client: client}
 }
 
-func (h *DeploymentHandler) OnAdd(obj interface{}, isInInitialList bool) {
+// OnAdd 监听到添加事件时的处理逻辑，目前对于开发环境的自动配置SVC只关注这一个
+func (h *DeploymentHandler) OnAdd(obj interface{}, _ bool) {
 	dep := obj.(*appsv1.Deployment)
 	log.Printf("[ADD] 检测到 Deployment 新增: %s/%s\n", dep.Namespace, dep.Name)
 	h.handle(dep, "add")
 }
 
 func (h *DeploymentHandler) OnUpdate(oldObj, newObj interface{}) {
-	dep := newObj.(*appsv1.Deployment)
-	log.Printf("[UPDATE] 检测到 Deployment 更新: %s/%s\n", dep.Namespace, dep.Name)
-	h.handle(dep, "update")
+	// 这里不关心更新的操作
+	//dep := newObj.(*appsv1.Deployment)
+	//log.Printf("[UPDATE] 检测到 Deployment 更新: %s/%s\n", dep.Namespace, dep.Name)
+	//h.handle(dep, "update")
 }
 
 func (h *DeploymentHandler) OnDelete(obj interface{}) {
 	// 对于删除事件，我们只获取基本信息
 	if dep, ok := obj.(*appsv1.Deployment); ok {
 		log.Printf("[DELETE] 检测到 Deployment 删除: %s/%s\n", dep.Namespace, dep.Name)
-		h.executeScript(dep.Name, dep.Namespace, "delete")
+		// todo 这里注释掉，仅作为扩展项执行脚本钩子
+		//h.executeScript(dep.Name, dep.Namespace, "delete")
 	} else {
 		// 如果是 DeletedFinalStateUnknown 对象
 		log.Printf("[DELETE] 检测到 Deployment 删除 (未知状态)")
@@ -50,8 +54,9 @@ func (h *DeploymentHandler) OnDelete(obj interface{}) {
 }
 
 func (h *DeploymentHandler) handle(dep *appsv1.Deployment, eventType string) {
-	// 执行用户指定的脚本
-	h.executeScript(dep.Name, dep.Namespace, eventType)
+	log.Printf("========= 开始 [ADD Handler] %v 开始执行处理逻辑", time.Now().Format("2006-01-02 15:04:05"))
+	// fixme 执行用户指定的脚本 {这里做成可扩展项，默认无需执行脚本钩子}
+	//h.executeScript(dep.Name, dep.Namespace, eventType)
 
 	// 原有的处理逻辑
 	ctx := context.Background()
@@ -132,6 +137,9 @@ func (h *DeploymentHandler) handle(dep *appsv1.Deployment, eventType string) {
 	if err != nil {
 		log.Println("Patch 失败:", err)
 	}
+
+	log.Printf("========= 完成 [ADD Handler] %v 完成执行处理逻辑", time.Now().Format("2006-01-02 15:04:05"))
+	log.Println()
 }
 
 // executeScript 执行用户指定的脚本
@@ -143,20 +151,20 @@ func (h *DeploymentHandler) executeScript(deploymentName, namespace, eventType s
 	} else {
 		scriptPath = "./example-script.sh"
 	}
-	
+
 	// 检查脚本文件是否存在
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		log.Printf("脚本文件不存在: %s", scriptPath)
 		return
 	}
-	
+
 	// 设置脚本可执行权限（非Windows系统）
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(scriptPath, 0755); err != nil {
 			log.Printf("设置脚本权限失败: %v", err)
 		}
 	}
-	
+
 	// 执行脚本
 	cmd := exec.Command(scriptPath, deploymentName, namespace, eventType)
 	output, err := cmd.CombinedOutput()

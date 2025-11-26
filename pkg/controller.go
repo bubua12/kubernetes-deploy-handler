@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// Namespace 指定监听的Kubernetes名称空间
 	Namespace = "syncplant-backend"
 )
 
@@ -37,9 +38,11 @@ func Run(ctx context.Context) error {
 			return err
 		}
 	}
+	log.Println("[SUCCESS] ====== ☸  使用集群内配置 ☸ ======")
 
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
+		log.Fatalf("[FAILED] ====== ☸ 初始化Kubernetes客户端失败 ☸ ======")
 		return err
 	}
 
@@ -57,13 +60,14 @@ func Run(ctx context.Context) error {
 
 	_, err = deployInformer.AddEventHandler(newDeploymentHandler(clientset))
 	if err != nil {
+		log.Fatalf("[FAILED] ====== ☸ 添加事件处理器失败 ☸ ======")
 		return err
 	}
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
-	log.Printf("开始监听 %s 命名空间下的 Deployment 事件...", Namespace)
+	log.Printf("☸  开始监听 %s 命名空间下的 Deployment 事件... ☸", Namespace)
 	factory.Start(stopCh)
 	factory.WaitForCacheSync(stopCh)
 
