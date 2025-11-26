@@ -31,22 +31,42 @@ func newDeploymentHandler(client *kubernetes.Clientset) *DeploymentHandler {
 func (h *DeploymentHandler) OnAdd(obj interface{}, _ bool) {
 	dep := obj.(*appsv1.Deployment)
 	log.Printf("[ADD] 检测到 Deployment 新增: %s/%s\n", dep.Namespace, dep.Name)
-	h.handle(dep, "add")
+
+	// 使用 goroutine 并行处理每个 deployment，避免阻塞
+	go func() {
+		// 添加延迟，确保 Deployment 和 Pod 已经启动完成
+		log.Printf("等待 30 秒以确保 %s/%s Deployment 准备就绪...\n", dep.Namespace, dep.Name)
+		time.Sleep(30 * time.Second)
+		h.handle(dep, "add")
+	}()
 }
 
 func (h *DeploymentHandler) OnUpdate(oldObj, newObj interface{}) {
 	// 这里不关心更新的操作
 	//dep := newObj.(*appsv1.Deployment)
 	//log.Printf("[UPDATE] 检测到 Deployment 更新: %s/%s\n", dep.Namespace, dep.Name)
-	//h.handle(dep, "update")
+	//
+	//// 使用 goroutine 并行处理每个 deployment，避免阻塞
+	//go func() {
+	//	// 添加延迟，确保 Deployment 和 Pod 已经启动完成
+	//	log.Printf("等待 30 秒以确保 %s/%s Deployment 准备就绪...\n", dep.Namespace, dep.Name)
+	//	time.Sleep(30 * time.Second)
+	//	h.handle(dep, "update")
+	//}()
 }
 
 func (h *DeploymentHandler) OnDelete(obj interface{}) {
 	// 对于删除事件，我们只获取基本信息
 	if dep, ok := obj.(*appsv1.Deployment); ok {
 		log.Printf("[DELETE] 检测到 Deployment 删除: %s/%s\n", dep.Namespace, dep.Name)
-		// todo 这里注释掉，仅作为扩展项执行脚本钩子
-		//h.executeScript(dep.Name, dep.Namespace, "delete")
+
+		//// 使用 goroutine 并行处理每个 deployment，避免阻塞
+		//go func() {
+		//	// 添加延迟，确保 Deployment 和 Pod 已经启动完成
+		//	log.Printf("等待 30 秒以确保 %s/%s Deployment 准备就绪...\n", dep.Namespace, dep.Name)
+		//	time.Sleep(30 * time.Second)
+		//	h.executeScript(dep.Name, dep.Namespace, "delete")
+		//}()
 	} else {
 		// 如果是 DeletedFinalStateUnknown 对象
 		log.Printf("[DELETE] 检测到 Deployment 删除 (未知状态)")
@@ -54,7 +74,8 @@ func (h *DeploymentHandler) OnDelete(obj interface{}) {
 }
 
 func (h *DeploymentHandler) handle(dep *appsv1.Deployment, eventType string) {
-	log.Printf("========= 开始 [ADD Handler] %v 开始执行处理逻辑", time.Now().Format("2006-01-02 15:04:05"))
+	log.Printf("========= 开始 [%s Handler] %v 开始执行处理逻辑", eventType, time.Now().Format("2006-01-02 15:04:05"))
+
 	// fixme 执行用户指定的脚本 {这里做成可扩展项，默认无需执行脚本钩子}
 	//h.executeScript(dep.Name, dep.Namespace, eventType)
 
@@ -138,13 +159,13 @@ func (h *DeploymentHandler) handle(dep *appsv1.Deployment, eventType string) {
 		log.Println("Patch 失败:", err)
 	}
 
-	log.Printf("========= 完成 [ADD Handler] %v 完成执行处理逻辑", time.Now().Format("2006-01-02 15:04:05"))
+	log.Printf("========= 完成 [%s Handler] %v 完成执行处理逻辑", eventType, time.Now().Format("2006-01-02 15:04:05"))
 	log.Println()
 }
 
 // executeScript 执行用户指定的脚本
 func (h *DeploymentHandler) executeScript(deploymentName, namespace, eventType string) {
-	// 根据操作系统选择合适的脚本
+	// 这里可以替换为你实际要执行的脚本路径
 	var scriptPath string
 	if runtime.GOOS == "windows" {
 		scriptPath = "example-script.bat"

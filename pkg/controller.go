@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,12 +25,20 @@ func Run(ctx context.Context) error {
 	// 尝试使用集群内配置，如果失败则尝试使用 kubeconfig 文件
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		log.Printf("无法加载集群内配置: %v，尝试使用 kubeconfig 文件", err)
+		log.Printf("无法加载集群内配置，失败原因: %v，尝试使用 kubeconfig 文件", err)
 
 		// 获取 kubeconfig 文件路径
 		var kubeconfig string
 		if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig == "" {
 			kubeconfig = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		}
+
+		// 适用于本地调试
+		switch runtime.GOOS {
+		case "windows":
+			kubeconfig = "C:\\\\Users\\\\wangxl\\\\.kube\\\\config"
+		default:
+			kubeconfig = "/root/.kube/config"
 		}
 
 		// 使用 kubeconfig 文件创建配置
@@ -38,7 +47,6 @@ func Run(ctx context.Context) error {
 			return err
 		}
 	}
-	log.Println("[SUCCESS] ====== ☸  使用集群内配置 ☸ ======")
 
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
