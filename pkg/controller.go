@@ -36,7 +36,8 @@ func Run(ctx context.Context) error {
 		// 适用于本地调试
 		switch runtime.GOOS {
 		case "windows":
-			kubeconfig = "C:\\\\Users\\\\wangxl\\\\.kube\\\\config"
+			// 替换个人Kubernetes配置文件
+			kubeconfig = `C:\Users\wangxl\.kube\config`
 		default:
 			kubeconfig = "/root/.kube/config"
 		}

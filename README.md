@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>一个基于 client-go 的 Kubernetes Deployment 监控控制器</strong>
+  <strong>一个基于 client-go 的 Kubernetes Deployment 定制化监控控制器</strong>
 </p>
 
 <p align="center">
@@ -101,6 +101,7 @@ if runtime.GOOS == "windows" {
 
 示例脚本 ([example-script.sh](file:///d:/workspaces/GolandProjects/kubernetes-deploy-handler/example-script.sh)):
 ```bash
+
 #!/bin/bash
 DEPLOYMENT_NAME=$1
 NAMESPACE=$2
@@ -112,8 +113,9 @@ echo "处理 Deployment $DEPLOYMENT_NAME ($EVENT_TYPE) 事件"
 
 ### 2. 运行应用
 
+本地运行基于
 ```bash
-./kubernetes-deploy-handler
+    go build -o controller ./cmd/controller
 ```
 
 ### 3. 观察日志
@@ -121,9 +123,10 @@ echo "处理 Deployment $DEPLOYMENT_NAME ($EVENT_TYPE) 事件"
 应用启动后会显示类似以下的日志信息：
 
 ```
-==============> kubernetes start <==============
-============> 启动 Deployment 监控控制器 <============
-开始监听 syncplant-backend 命名空间下的 Deployment 事件...
+===============================================
+  🚀 NodePort Controller 启动中...
+  📦 正在初始化 Kubernetes 客户端...
+===============================================
 ```
 
 ### 4. 测试功能
@@ -143,49 +146,61 @@ kubectl delete deployment test-app -n syncplant-backend
 
 ## 🥗 Kubernetes 部署
 ```yaml
+# 创建专门的 ServiceAccount，放在devops下
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: syncplant-controller-sa
+  namespace: devops
+---
+# 创建 ClusterRole 因为操作跨 namespace 的 deployment/service/pod
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: syncplant-controller-cr
+rules:
+  - apiGroups: [ "apps" ]
+    resources: [ "deployments" ]
+    verbs: [ "get", "list", "watch", "update", "patch" ]
+
+  - apiGroups: [ "" ]
+    resources: [ "services", "pods" ]
+    verbs: [ "get", "list", "watch", "create", "update", "patch" ]
+---
+# 使用 ClusterRoleBinding，把权限只绑定到这个 SA（安全）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: syncplant-controller-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: syncplant-controller-cr
+subjects:
+  - kind: ServiceAccount
+    name: syncplant-controller-sa
+    namespace: devops   # Controller 所在的 namespace
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nodeport-controller
-  namespace: syncplant-backend
+  name: syncplant-svc-controller
+  namespace: devops
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nodeport-controller
+      app: syncplant-svc-controller
   template:
     metadata:
       labels:
-        app: nodeport-controller
+        app: syncplant-svc-controller
     spec:
-      serviceAccountName: default
+      serviceAccountName: syncplant-controller-sa
       containers:
         - name: controller
-          image: bubua12/auto-config-controller:1.0.1
+          image: bubua12/auto-config-controller:1.0.6
           imagePullPolicy: IfNotPresent
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: nodeport-controller-role
-rules:
-- apiGroups: ["", "apps"]
-  resources: ["pods", "services", "deployments"]
-  verbs: ["get", "list", "watch", "create", "update", "patch"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: nodeport-controller-bind
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: nodeport-controller-role
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: syncplant-backend
 ```
 
 ## 📄 许可证
